@@ -5,6 +5,7 @@ import ItemCard from '../../../components/takeaway/itemcard';
 import CartSummary from '../../../components/takeaway/cartsummary';
 import CartSummaryLarge from '../../../components/takeaway/cartsummarylarge';
 import Navbar from '@/components/navbar';
+import { usePathname } from 'next/navigation';
 
 interface Item {
   id: number;
@@ -23,7 +24,9 @@ const TakeawayPage: React.FC = () => {
   ];
 
   const GST_RATE = 0.18; 
+const pathname=usePathname()
 
+console.log("im pathname",pathname)
   const [cart, setCart] = useState<{ item: Item; quantity: number }[]>([]);
   const [filter, setFilter] = useState<string>('');
   const [quantities, setQuantities] = useState<Record<number, number>>({});
@@ -91,6 +94,7 @@ const TakeawayPage: React.FC = () => {
           totalPrice={totalPrice}
           gstAmount={gstAmount}
           totalPayable={totalPayable}
+          currentPage={pathname}
         />
       </div>
       </div>

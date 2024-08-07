@@ -51,7 +51,7 @@ const CartSummaryLarge: React.FC<CartSummaryLargeProps> = ({
         <span>₹{totalPayable.toFixed(2)}</span>
       </div>
       <div className="mt-4">
-        {currentPage === 'takeaway' ? (
+        {currentPage === '/takeaway' ? (
           <Link
             href={{
               pathname: '/cartpage',
