@@ -1,7 +1,9 @@
 "use client";
+import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 
 const OTPVerificationPage: React.FC = () => {
+  const router=useRouter()
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [expiryTime, setExpiryTime] = useState<number | null>(null); 
   const [remainingTime, setRemainingTime] = useState<string>(''); 
@@ -14,6 +16,12 @@ const OTPVerificationPage: React.FC = () => {
       setExpiryTime(Number(expiryParam));
     }
   }, []);
+
+  const handleVerifyOtp=()=>{
+    console.log(otp.join(''))
+    
+    router.push('/select')
+  }
 
   useEffect(() => {
     if (expiryTime) {
@@ -48,6 +56,7 @@ const OTPVerificationPage: React.FC = () => {
 
   const handleResendOtp = () => {
     console.log("OTP resent!");
+
     setCanResend(false); 
     const newExpiryTime = Date.now() + 2 * 60 * 1000;
     setExpiryTime(newExpiryTime);
@@ -77,6 +86,7 @@ const OTPVerificationPage: React.FC = () => {
               ))}
             </div>
             <button
+            onClick={()=>handleVerifyOtp()}
               className="bg-red-800 text-white font-bold py-3 px-4 rounded w-full"
               type="button"
             >

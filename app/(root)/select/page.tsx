@@ -14,7 +14,7 @@ const OptionSelect: React.FC = () => {
         <Link href="/dinein">
           <button className="w-full sm:w-[300px] md:w-[350px] p-4 flex flex-col items-center text-white border border-gray-400 m-4 rounded-lg bg-transparent transition-transform transform hover:bg-white hover:text-red-800">
             <h2 className="text-lg sm:text-xl md:text-2xl font-bold mb-2 transition-colors duration-300">Dine-In</h2>
-            <p className="text-white text-center text-sm sm:text-base md:text-lg transition-colors duration-300">
+            <p className=" text-center text-sm sm:text-base md:text-lg transition-colors duration-300">
               Enjoy your traditional feast in our beautifully decorated dining area.
             </p>
           </button>
@@ -23,7 +23,7 @@ const OptionSelect: React.FC = () => {
         <Link href="/takeaway">
           <button className="w-full sm:w-[300px] md:w-[350px] p-4 flex flex-col items-center text-white border border-gray-400 m-4 rounded-lg bg-transparent transition-transform transform hover:bg-white hover:text-red-800">
             <h2 className="text-lg sm:text-xl md:text-2xl font-bold mb-2 transition-colors duration-300">Takeaway</h2>
-            <p className="text-white text-center text-sm sm:text-base md:text-lg transition-colors duration-300">
+            <p className=" text-center text-sm sm:text-base md:text-lg transition-colors duration-300">
               Enjoy Onam Sadhya at home with our convenient takeaway option.
             </p>
           </button>

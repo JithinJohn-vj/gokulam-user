@@ -1,12 +1,18 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import Navbar from '@/components/navbar';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../../../components/ui/select';
+import { Button } from '@/components/ui/button';
+import { useCheckoutData, useDineInData } from '@/api/orders/Mutations';
+import { toast } from 'sonner';
 
 const DineInPage: React.FC = () => {
+
+    const DineInMutation = useDineInData()
+    const CheckOutDataMutation=useCheckoutData()
     const searchParams = useSearchParams();
     const cartItems = searchParams.get('cartItems');
     const parsedCartItems = cartItems ? JSON.parse(cartItems) : [];
@@ -17,6 +23,7 @@ const DineInPage: React.FC = () => {
     const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
     const [guestCount, setGuestCount] = useState(0);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [validationError, setValidationError] = useState<string | null>(null);
 
     const pricePerGuest = 300;
 
@@ -32,12 +39,70 @@ const DineInPage: React.FC = () => {
     const decrementGuestCount = () => setGuestCount(guestCount > 0 ? guestCount - 1 : 0);
 
     const handleNextClick = () => {
-        setIsModalOpen(true);
+        // Perform validation
+        if (!fullName || !phoneNumber || !selectedOutlet || !selectedTimeSlot || guestCount <= 0) {
+            setValidationError('Please fill out all required fields.');
+            return;
+        }
+        const data = {
+            name: fullName,
+            branch: selectedOutlet,
+            order_type: "Dine In",
+            // timeslot: "01:00 PM TO 02:00 PM",
+            timeslot: selectedTimeSlot,
+            count: guestCount,
+            net_amount: totalAmount,
+        }
+        CheckOutDataMutation.mutate(data)
+        console.log(data)
+        // If validation passes, proceed to open the modal
+        // setIsModalOpen(true);
+        setValidationError(null); // Clear any previous validation errors
     };
 
     const closeModal = () => {
         setIsModalOpen(false);
     };
+
+
+    const [slots, setSlots] = useState([{
+        branch: "",
+        timeslot: "",
+        available_slots: 0
+    }])
+
+
+    // Extract unique outlet names from the slots array
+    const uniqueOutlets = [
+        "Parivattom",
+        "Kadavanthra",
+        "Panampilly Nagar",
+        "Forum Mall outlet",
+    ]
+
+
+
+    useEffect(() => {
+        if (selectedOutlet && guestCount > 0) {
+            // Example API call
+            const data = {
+                branch: selectedOutlet,
+                order_type: "Dine In",
+                count: guestCount
+            }
+            DineInMutation.mutate(data, {
+                onSuccess: (m) => {
+                    // toast.info(`your test otp is ${m.otp}`)
+                    console.log(m)
+                    setSlots(m.slots)
+                },
+                onError: () => {
+                    console.log("error")
+                },
+            });
+
+        }
+    }, [selectedOutlet, guestCount]);
 
     return (
         <div>
@@ -56,9 +121,13 @@ const DineInPage: React.FC = () => {
                                     type="text"
                                     placeholder="Full Name"
                                     value={fullName}
+                                    required
                                     onChange={(e) => setFullName(e.target.value)}
                                     className="border rounded p-2 md:w-[400px] w-full"
                                 />
+                                {validationError && !fullName && (
+                                    <p className="text-red-600 text-sm mt-1">Full Name is required.</p>
+                                )}
                             </div>
                             <div className="flex-1">
                                 <label className="block mb-1 text-sm md:mt-0 mt-4">Phone Number</label>
@@ -66,9 +135,13 @@ const DineInPage: React.FC = () => {
                                     type="text"
                                     placeholder="Phone Number"
                                     value={phoneNumber}
+                                    required
                                     onChange={(e) => setPhoneNumber(e.target.value)}
                                     className="border rounded p-2 md:w-[400px] w-full"
                                 />
+                                {validationError && !phoneNumber && (
+                                    <p className="text-red-600 text-sm mt-1">Phone Number is required.</p>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -80,11 +153,16 @@ const DineInPage: React.FC = () => {
                                 <SelectValue placeholder="Select an outlet" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="Outlet 1">Mattancheri</SelectItem>
-                                <SelectItem value="Outlet 2">Paalarivattam</SelectItem>
-                                <SelectItem value="Outlet 3">Fort Cochin</SelectItem>
+                                {uniqueOutlets.map((outlet, index) => (
+                                    <SelectItem key={index} value={outlet}>
+                                        {outlet}
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
+                        {validationError && !selectedOutlet && (
+                            <p className="text-red-600 text-sm mt-1">Please select an outlet.</p>
+                        )}
                     </div>
 
                     <div className="mb-8">
@@ -110,24 +188,34 @@ const DineInPage: React.FC = () => {
                                 -
                             </button>
                         </div>
+                        {validationError && guestCount <= 0 && (
+                            <p className="text-red-600 text-sm mt-1">Please add at least one guest.</p>
+                        )}
                     </div>
 
                     <div>
-                        <h2 className="text-md font-bold mb-2">Available Time Slots</h2>
-                        <div className="grid grid-cols-2 md:grid md:grid-cols-4 gap-4">
-                            <button
-                                onClick={() => handleTimeSlotSelect('9 AM - 12 PM')}
-                                className={`p-2 border md:w-[140px] rounded-lg ${selectedTimeSlot === '9 AM - 12 PM' ? 'text-white bg-red-800' : 'border border-red-800'}`}
-                            >
-                                9 AM - 12 PM
-                            </button>
-                            <button
-                                onClick={() => handleTimeSlotSelect('1 PM - 5 PM')}
-                                className={`p-2 border md:w-[140px] rounded-lg ${selectedTimeSlot === '1 PM - 5 PM' ? 'text-white bg-red-800' : 'border border-red-800'}`}
-                            >
-                                1 PM - 5 PM
-                            </button>
-                        </div>
+                        {slots[0]?.branch === '' ? '' :
+                            <>
+                                <h2 className="text-md font-bold mb-2">Available Time Slots</h2>
+                                <div className="grid grid-cols-2 md:grid md:grid-cols-4 gap-4">
+                                    {slots
+                                        .filter(slot => slot?.branch === selectedOutlet)
+                                        .map((slot, index) => (
+                                            <button
+                                                key={index}
+                                                onClick={() => handleTimeSlotSelect(slot.timeslot)}
+                                                className={`p-2 border md:w-[140px] rounded-lg ${selectedTimeSlot === slot.timeslot ? 'text-white bg-red-800' : 'border border-red-800'}`}
+                                            >
+                                                {slot.timeslot}
+                                            </button>
+                                        ))}
+                                </div>
+                            </>
+
+                        }
+                        {validationError && !selectedTimeSlot && (
+                            <p className="text-red-600 text-sm mt-1">Please select a time slot.</p>
+                        )}
                     </div>
 
                     <div className="mt-4 flex justify-between md:hidden">
@@ -150,6 +238,7 @@ const DineInPage: React.FC = () => {
                         </button>
                     </div>
                 </div>
+
 
                 {/* Reservation Details for Large Screens */}
                 <div className="hidden md:block w-1/2 ml-4">
@@ -179,67 +268,70 @@ const DineInPage: React.FC = () => {
                         </li>
                     </ul>
                     <div className="mt-6 flex justify-center">
-                        <Link
-                            href={`/reservepayment?fullName=${encodeURIComponent(fullName)}&phoneNumber=${encodeURIComponent(phoneNumber)}&selectedOutlet=${encodeURIComponent(selectedOutlet)}&selectedTimeSlot=${encodeURIComponent(selectedTimeSlot || '')}&guestCount=${guestCount}&totalAmount=${totalAmount.toFixed(2)}&gstAmount=${gstAmount.toFixed(2)}&totalPayable=${totalWithGst.toFixed(2)}`}
-                            onClick={closeModal}
-                            className="bg-red-800 text-white rounded-md text-center py-2 w-full"
+                        <button
+                            onClick={handleNextClick}
+                            className="bg-red-800 text-white w-full py-2 rounded-md mt-4"
                         >
-                            Confirm Payment
-                        </Link>
+                            Proceed to Payment
+                        </button>
                     </div>
                 </div>
-            </div>
 
-            {/* Modal for Reservation Details - Only for Mobile Screens */}
-            {isModalOpen && (
-                <div className="fixed inset-0 flex items-end justify-center z-50 bg-black bg-opacity-50 md:hidden">
-                    <div className="bg-white rounded-t-lg p-6 max-w-lg w-full h-[60%] relative">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-bold">Reservation Details</h2>
-                            <button onClick={closeModal} className="text-gray-800 hover:text-red-800 focus:outline-none">
-                                <img src="/takeaway/close.svg" alt="close" className="h-5 w-5" />
-                            </button>
-                        </div>
-                        <div className="flex items-center justify-between my-4">
-                            <div className="flex items-center justify-between my-4">
-                                <div className="flex items-center">
-                                    <img src="/takeaway/paripp.svg" alt="Onam Celebration" className="h-12 w-12 mr-2" />
-                                    <div>
-                                        <h3 className="text-[14px] font-bold">Table Reservation</h3>
-                                        <p className="text-xs">Guests: {guestCount}</p>
-                                    </div>
-                                </div>
-                                <p className="text-sm font-bold text-blaxk ml-8">₹{totalAmount.toFixed(2)}</p>
+
+                {/* Modal for Small Screens */}
+                {isModalOpen && (
+                    <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50">
+                        <div className="bg-white p-4 rounded-lg">
+                            <h2 className="text-lg font-bold mb-4">Reservation Summary</h2>
+                            <p>Full Name: {fullName}</p>
+                            <p>Phone Number: {phoneNumber}</p>
+                            <p>Selected Outlet: {selectedOutlet}</p>
+                            <p>Time Slot: {selectedTimeSlot}</p>
+                            <p>Total Guests: {guestCount}</p>
+                            <p className="font-bold mt-4">Total Amount with GST: ₹{totalWithGst.toFixed(2)}</p>
+                            <div className="flex mt-4">
+                                <button
+                                    onClick={closeModal}
+                                    className="bg-gray-200 text-gray-800 px-4 py-2 rounded-md mr-2"
+                                >
+                                    Close
+                                </button>
+                                {/* <Link
+                                href={`/reservepayment?fullName=${encodeURIComponent(fullName)}&phoneNumber=${encodeURIComponent(phoneNumber)}&selectedOutlet=${encodeURIComponent(selectedOutlet)}&selectedTimeSlot=${encodeURIComponent(selectedTimeSlot)}&guestCount=${guestCount}&totalWithGst=${totalWithGst}`}
+                                className="bg-red-800 text-white px-4 py-2 rounded-md"
+                            >
+                                Proceed to Payment
+                            </Link> */}
+                                <button
+                                    onClick={handleNextClick}
+                                    className="bg-red-800 text-white w-full py-2 rounded-md mt-4"
+                                >
+                                    Proceed to Payment
+                                </button>
                             </div>
                         </div>
+                    </div>
+                )}
 
-                        <ul className="mt-4">
-                            <li className="border-b border-gray-200 py-2 flex justify-between">
-                                <span className="font-semibold">Total Amount:</span>
-                                <span>₹{totalAmount.toFixed(2)}</span>
-                            </li>
-                            <li className="border-b border-gray-200 py-2 flex justify-between">
-                                <span className="font-semibold">GST (18%):</span>
-                                <span>₹{gstAmount.toFixed(2)}</span>
-                            </li>
-                            <li className="border-b border-gray-200 py-2 flex justify-between font-bold">
-                                <span className="font-semibold">Total Amount with GST:</span>
-                                <span>₹{totalWithGst.toFixed(2)}</span>
-                            </li>
-                        </ul>
-                        <div className="mt-6 flex justify-center">
-                            <Link
-                                href={`/reservepayment?fullName=${encodeURIComponent(fullName)}&phoneNumber=${encodeURIComponent(phoneNumber)}&selectedOutlet=${encodeURIComponent(selectedOutlet)}&selectedTimeSlot=${encodeURIComponent(selectedTimeSlot || '')}&guestCount=${guestCount}&totalAmount=${totalAmount.toFixed(2)}&gstAmount=${gstAmount.toFixed(2)}&totalPayable=${totalWithGst.toFixed(2)}`}
-                                onClick={closeModal}
-                                className="bg-red-800 text-white rounded-md text-center py-3 px-16"
-                            >
-                                Confirm Payment
-                            </Link>
-                        </div>
+
+
+            </div>
+
+            {/* Modal */}
+            {isModalOpen && (
+                <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex justify-center items-center z-50">
+                    <div className="bg-white p-8 rounded-md shadow-lg max-w-lg w-full">
+                        <h2 className="text-xl font-bold mb-4">Confirm Reservation</h2>
+                        <p className="mb-4">Total amount to be paid: ₹{totalWithGst.toFixed(2)}</p>
+                        <button
+                            onClick={closeModal}
+                            className="bg-red-800 text-white px-4 py-2 rounded-md"
+                        >
+                            Proceed to Payment
+                        </button>
                     </div>
                 </div>
             )}
-
         </div>
     );
 };
