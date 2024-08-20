@@ -2,15 +2,25 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Navbar from '@/components/navbar';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../../../components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useCheckoutData, useDineInData } from '@/api/orders/Mutations';
 import { toast } from 'sonner';
+import Script from 'next/script';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Loader } from 'lucide-react';
+import usePaymentStore from '@/store/paymentStore';
 
 const DineInPage: React.FC = () => {
-
+    const router=useRouter()
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [amount, setAmount] = useState('0');
+    const [currency, setCurrency] = useState('INR');
+    const [loading, setLoading] = useState(false);
     const DineInMutation = useDineInData()
     const CheckOutDataMutation=useCheckoutData()
     const searchParams = useSearchParams();
@@ -53,7 +63,8 @@ const DineInPage: React.FC = () => {
             count: guestCount,
             net_amount: totalAmount,
         }
-        CheckOutDataMutation.mutate(data)
+        processPayment()
+        // CheckOutDataMutation.mutate(data)
         console.log(data)
         // If validation passes, proceed to open the modal
         // setIsModalOpen(true);
@@ -84,28 +95,163 @@ const DineInPage: React.FC = () => {
 
     useEffect(() => {
         if (selectedOutlet && guestCount > 0) {
-            // Example API call
+            setLoading(true);
             const data = {
                 branch: selectedOutlet,
                 order_type: "Dine In",
                 count: guestCount
-            }
+            };
+
             DineInMutation.mutate(data, {
                 onSuccess: (m) => {
-                    // toast.info(`your test otp is ${m.otp}`)
-                    console.log(m)
-                    setSlots(m.slots)
+                    console.log(m);
+                    setSlots(m.slots);
+                    setLoading(false);
                 },
                 onError: () => {
-                    console.log("error")
+                    console.log("error");
+                    setLoading(false);
                 },
             });
-
         }
     }, [selectedOutlet, guestCount]);
 
+
+
+    const createOrderId = async () => {
+        try {
+         const response = await fetch('/api/order', {
+          method: 'POST',
+          headers: {
+           'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+           amount: parseFloat(amount) * 100,
+          }),
+         });
+      
+         if (!response.ok) {
+          throw new Error('Network response was not ok');
+         }
+      
+         const data = await response.json();
+         console.log(data)
+         return data.orderId;
+        } catch (error) {
+         console.error('There was a problem with your fetch operation:', error);
+        }
+       };
+       const processPayment = async (e: React.FormEvent<HTMLFormElement>) => {
+        // e.preventDefault();
+        try {
+            const orderId: string = await createOrderId();
+            const options = {
+                key: "rzp_test_n28y85VqpGDlYX",
+                amount: parseFloat(String(totalWithGst.toFixed(2))) * 100,
+                currency: currency,
+                name: 'name',
+                description: 'description',
+                order_id: orderId,
+                handler: async function (response: any) {
+                    console.log(response);
+                    if (response.razorpay_payment_id) {
+                        const data = {
+                            name: fullName,
+                            branch: selectedOutlet,
+                            razorpayPaymentId: response.razorpay_payment_id,
+                            order_type: "Dine In",
+                            timeslot: selectedTimeSlot,
+                            cartItems:cartItems,
+                            count: guestCount,
+                            net_amount: totalAmount,
+                            totalAmount:totalAmount,
+                            gstAmount:gstAmount,
+                            totalWithGst:totalWithGst
+                        };
+                        console.log(data);
+                        
+                        // Store data in Zustand
+                        const { setPaymentData } = usePaymentStore.getState();
+                        setPaymentData(data);
+    
+                        CheckOutDataMutation.mutate(data, {
+                            onSuccess: (m) => {
+                                router.push('/payment');
+                            },
+                        });
+                    } else {
+                        alert("Payment verification failed");
+                    }
+                },
+                prefill: {
+                    name: fullName,
+                    phoneNumber: phoneNumber,
+                    selectedOutlet: selectedOutlet,
+                    selectedTimeSlot: selectedTimeSlot,
+                    guestCount: guestCount,
+                },
+                theme: {
+                    color: '#3399cc',
+                },
+            };
+            const paymentObject = new window.Razorpay(options);
+            paymentObject.on('payment.failed', function (response: any) {
+                alert(response.error.description);
+            });
+            paymentObject.open();
+        } catch (error) {
+            console.log(error);
+        }
+    };
+      
+
     return (
         <div>
+              <Script
+    id="razorpay-checkout-js"
+    src="https://checkout.razorpay.com/v1/checkout.js"
+   />
+   {/* <section className="min-h-[94vh] flex flex-col gap-6 h-14 mx-5 sm:mx-10 2xl:mx-auto 2xl:w-[1400px] items-center pt-36 ">
+    <form
+     className="flex flex-col gap-6 w-full sm:w-80"
+     onSubmit={processPayment}
+    >
+     <div className="space-y-1">
+      <Label>Full name</Label>
+      <Input
+       type="text"
+       required
+       value={name}
+       onChange={(e) => setName(e.target.value)}
+      />
+     </div>
+     <div className="space-y-1">
+      <Label>Email</Label>
+      <Input
+       type="email"
+       placeholder="user@gmail.com"
+       required
+       value={email}
+       onChange={(e) => setEmail(e.target.value)}
+      />
+     </div>
+     <div className="space-y-1">
+      <Label>Amount</Label>
+      <div className="flex gap-2">
+       <Input
+        type="number"
+        step="1"
+        min={5}
+        required
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+       />
+      </div>
+     </div>
+
+     <Button type="submit">Pay</Button>
+    </form>
+   </section> */}
             <Navbar />
             <div className="flex container mx-auto p-4 mt-4">
                 <div className="flex-grow mr-4">
@@ -192,8 +338,39 @@ const DineInPage: React.FC = () => {
                             <p className="text-red-600 text-sm mt-1">Please add at least one guest.</p>
                         )}
                     </div>
-
                     <div>
+            {loading ? (
+                <div className='w-full  flex justify-center items-center'>
+
+                    <Loader className='animate-spin ' />
+                </div>
+            ) : (
+                <>
+                    {slots[0]?.branch === '' ? '' :
+                        <>
+                            <h2 className="text-md font-bold mb-2">Available Time Slots</h2>
+                            <div className="grid grid-cols-2 md:grid md:grid-cols-4 gap-4">
+                                {slots
+                                    .filter(slot => slot?.branch === selectedOutlet)
+                                    .map((slot, index) => (
+                                        <button
+                                            key={index}
+                                            onClick={() => handleTimeSlotSelect(slot.timeslot)}
+                                            className={`p-2 border md:w-[140px] rounded-lg ${selectedTimeSlot === slot.timeslot ? 'text-white bg-red-800' : 'border border-red-800'}`}
+                                        >
+                                            {slot.timeslot}
+                                        </button>
+                                    ))}
+                            </div>
+                        </>
+                    }
+                    {validationError && !selectedTimeSlot && (
+                        <p className="text-red-600 text-sm mt-1">Please select a time slot.</p>
+                    )}
+                </>
+            )}
+        </div>
+                    {/* <div>
                         {slots[0]?.branch === '' ? '' :
                             <>
                                 <h2 className="text-md font-bold mb-2">Available Time Slots</h2>
@@ -216,7 +393,7 @@ const DineInPage: React.FC = () => {
                         {validationError && !selectedTimeSlot && (
                             <p className="text-red-600 text-sm mt-1">Please select a time slot.</p>
                         )}
-                    </div>
+                    </div> */}
 
                     <div className="mt-4 flex justify-between md:hidden">
                         <Link
@@ -337,3 +514,144 @@ const DineInPage: React.FC = () => {
 };
 
 export default DineInPage;
+
+
+// 'use client';
+// import { useState } from 'react';
+// import Script from 'next/script';
+// import { Button } from '@/components/ui/button';
+// import { Input } from '@/components/ui/input';
+// import { Label } from '@/components/ui/label';
+
+// function Payment() {
+//  const [name, setName] = useState('');
+//  const [email, setEmail] = useState('');
+//  const [amount, setAmount] = useState('0');
+//  const [currency, setCurrency] = useState('INR');
+//  const [loading, setLoading] = useState(false);
+//  const createOrderId = async () => {
+//   try {
+//    const response = await fetch('/api/order', {
+//     method: 'POST',
+//     headers: {
+//      'Content-Type': 'application/json',
+//     },
+//     body: JSON.stringify({
+//      amount: parseFloat(amount) * 100,
+//     }),
+//    });
+
+//    if (!response.ok) {
+//     throw new Error('Network response was not ok');
+//    }
+
+//    const data = await response.json();
+//    console.log(data)
+//    return data.orderId;
+//   } catch (error) {
+//    console.error('There was a problem with your fetch operation:', error);
+//   }
+//  };
+// const processPayment = async (e: React.FormEvent<HTMLFormElement>) => {
+//   e.preventDefault();
+//   try {
+//    const orderId: string = await createOrderId();
+//    const options = {
+//     key:"rzp_test_n28y85VqpGDlYX",
+//     amount: parseFloat(amount) * 100,
+//     currency: currency,
+//     name: 'name',
+//     description: 'description',
+//     order_id: orderId,
+//     handler: async function (response: any) {
+//      const data = {
+//       orderCreationId: orderId,
+//       razorpayPaymentId: response.razorpay_payment_id,
+//       razorpayOrderId: response.razorpay_order_id,
+//       razorpaySignature: response.razorpay_signature,
+//      };
+//      console.log(data)
+
+//     //  const result = await fetch('/api/verify', {
+//     //   method: 'POST',
+//     //   body: JSON.stringify(data),
+//     //   headers: { 'Content-Type': 'application/json' },
+//     //  });
+//     //  const res = await result.json();
+//     //  if (res.isOk) alert("payment succeed");
+//     //  else {
+//     //   alert(res.message);
+//     //  }
+//     },
+//     prefill: {
+//      name: name,
+//      email: email,
+//     },
+//     theme: {
+//      color: '#3399cc',
+//     },
+//    };
+//    const paymentObject = new window.Razorpay(options);
+//    paymentObject.on('payment.failed', function (response: any) {
+//     alert(response.error.description);
+//    });
+//    paymentObject.open();
+//   } catch (error) {
+//    console.log(error);
+//   }
+//  };
+
+ 
+//  return (
+//   <>
+//    <Script
+//     id="razorpay-checkout-js"
+//     src="https://checkout.razorpay.com/v1/checkout.js"
+//    />
+
+//    <section className="min-h-[94vh] flex flex-col gap-6 h-14 mx-5 sm:mx-10 2xl:mx-auto 2xl:w-[1400px] items-center pt-36 ">
+//     <form
+//      className="flex flex-col gap-6 w-full sm:w-80"
+//      onSubmit={processPayment}
+//     >
+//      <div className="space-y-1">
+//       <Label>Full name</Label>
+//       <Input
+//        type="text"
+//        required
+//        value={name}
+//        onChange={(e) => setName(e.target.value)}
+//       />
+//      </div>
+//      <div className="space-y-1">
+//       <Label>Email</Label>
+//       <Input
+//        type="email"
+//        placeholder="user@gmail.com"
+//        required
+//        value={email}
+//        onChange={(e) => setEmail(e.target.value)}
+//       />
+//      </div>
+//      <div className="space-y-1">
+//       <Label>Amount</Label>
+//       <div className="flex gap-2">
+//        <Input
+//         type="number"
+//         step="1"
+//         min={5}
+//         required
+//         value={amount}
+//         onChange={(e) => setAmount(e.target.value)}
+//        />
+//       </div>
+//      </div>
+
+//      <Button type="submit">Pay</Button>
+//     </form>
+//    </section>
+//   </>
+//  );
+// }
+
+// export default Payment;

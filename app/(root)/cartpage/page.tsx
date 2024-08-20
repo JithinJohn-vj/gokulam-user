@@ -6,12 +6,18 @@ import Navbar from '@/components/navbar';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../../../components/ui/select';
 import CartSummaryLarge from '../../../components/takeaway/cartsummarylarge';
 import { useCheckoutData, useDineInData } from '@/api/orders/Mutations';
+import usePaymentStore from '@/store/paymentStore';
+import { useRouter } from 'next/navigation';
+import Script from 'next/script';
+
 
 const CartPage: React.FC = () => {
+  const router=useRouter()
   const DineInMutation = useDineInData();
   const CheckOutDataMutation = useCheckoutData();
   const searchParams = useSearchParams();
   const totalPrice = parseFloat(searchParams.get('totalPrice') || '0');
+  const [currency, setCurrency] = useState('INR');
   const gstAmount = parseFloat(searchParams.get('gstAmount') || '0');
   const totalPayable = parseFloat(searchParams.get('totalPayable') || '0');
   const cartItems = searchParams.get('cartItems');
@@ -157,14 +163,106 @@ const CartPage: React.FC = () => {
 
 
     if (isValid) {
-      CheckOutDataMutation.mutate(data)
+      processPayment()
+      // CheckOutDataMutation.mutate(data)
       // Navigate to the payment page with the provided data
       // window.location.href = `/payment?fullName=${fullName}&phoneNumber=${phoneNumber}&selectedOutlet=${selectedOutlet}&selectedTimeSlot=${selectedTimeSlot}&items=${encodeURIComponent(JSON.stringify(parsedCartItems))}&totalPrice=${totalPrice}&gstAmount=${gstAmount}&totalPayable=${totalPayable}`;
     }
   };
 
+  const createOrderId = async () => {
+    try {
+     const response = await fetch('/api/order', {
+      method: 'POST',
+      headers: {
+       'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+       amount: parseFloat('100.90') * 100,
+      }),
+     });
+  
+     if (!response.ok) {
+      throw new Error('Network response was not ok');
+     }
+  
+     const data = await response.json();
+     console.log(data)
+     return data.orderId;
+    } catch (error) {
+     console.error('There was a problem with your fetch operation:', error);
+    }
+   };
+  const processPayment = async (e: React.FormEvent<HTMLFormElement>) => {
+    // e.preventDefault();
+    try {
+      console.log(totalPayable)
+        const orderId: string = await createOrderId();
+        console.log("object")
+        const options = {
+            key: "rzp_test_n28y85VqpGDlYX",
+            amount: parseFloat(String(totalPayable.toFixed(2))) * 100,
+            currency: currency,
+            name: 'name',
+            description: 'description',
+            order_id: orderId,
+            handler: async function (response: any) {
+                console.log(response);
+                if (response.razorpay_payment_id) {
+                    const data = {
+                        name: fullName,
+                        branch: selectedOutlet,
+                        razorpayPaymentId: response.razorpay_payment_id,
+                        order_type: "Dine In",
+                        timeslot: selectedTimeSlot,
+                        cartItems:cartItems,
+
+                        net_amount: totalPrice,
+                        totalAmount:totalPrice,
+                        gstAmount:gstAmount,
+                        totalWithGst:totalPayable
+                    };
+                    console.log(data);
+                    
+                    // Store data in Zustand
+                    const { setPaymentData } = usePaymentStore.getState();
+                    setPaymentData(data);
+
+                    CheckOutDataMutation.mutate(data, {
+                        onSuccess: (m) => {
+                            router.push('/payment');
+                        },
+                    });
+                } else {
+                    alert("Payment verification failed");
+                }
+            },
+            prefill: {
+                name: fullName,
+                phoneNumber: phoneNumber,
+                selectedOutlet: selectedOutlet,
+                selectedTimeSlot: selectedTimeSlot,
+            },
+            theme: {
+                color: '#3399cc',
+            },
+        };
+        const paymentObject = new window.Razorpay(options);
+        paymentObject.on('payment.failed', function (response: any) {
+            alert(response.error.description);
+        });
+        paymentObject.open();
+    } catch (error) {
+        console.log(error);
+    }
+};
+
   return (
     <div>
+             <Script
+    id="razorpay-checkout-js"
+    src="https://checkout.razorpay.com/v1/checkout.js"
+   />
       <Navbar />
       <div className="flex container mx-auto p-4 mt-4">
         <div className="flex-grow mr-4">
